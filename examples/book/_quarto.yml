@@ -1,0 +1,25 @@
+project:
+  type: book
+
+book:
+  title: "Book on Algorithms"
+  author: "Jander Moreira"
+  date: "2023/09/14"
+  chapters:
+    - index.qmd
+    - chapter_1.qmd
+    - chapter_2.qmd
+    - book_stuff/chapter_qmd.qmd
+
+filters: 
+  - algxpar
+
+format:
+  html:
+    theme: cosmo
+  pdf:
+    documentclass: scrbook
+    keep-tex: true
+
+
+

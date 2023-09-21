@@ -1,0 +1,45 @@
+# One
+
+``` {.pseudocode label=#alg-blue}
+\begin{algorithmic}<language = brazilian, keyword color = blue>
+    \Description Criação de um arquivo com informações para manter uma agenda simplificada.
+    \Input Uma sequência de contatos, separada nos campos \Id{nome}, \Id{email}, \Id{telefone}, \Id{mês} e \Id{ano}
+    \Output Os dados de entrada armazenados em um arquivo
+    \Procedure{CrieAgenda}{}[Criação a partir de dados externos]
+      \Statep{Crie \Id{arquivo} como um arquivo vazio com acesso de escrita}
+      \While{há dados para na entrada}
+          \Statep{Obtenha os valores para \Id{nome}, \Id{email}, \Id{telefone}, \Id{mês} e \Id{ano}}
+          \Statex
+          \Statep{\Write \Id{nome} em \Id{arquivo}}
+          \Statep{\Write \Id{telefone} em \Id{arquivo}}
+          \Statep{\Write \Id{email} em \Id{arquivo}}
+          \Statep{\Write \Id{mês} em \Id{arquivo}}
+          \Statep{\Write \Id{ano} em \Id{arquivo}}
+      \EndWhile
+      \Statep{Encerre o acesso a \Id{arquivo}}
+    \EndProcedure
+\end{algorithmic}
+```
+
+
+Function	Description
+quarto.doc.add_html_dependency(dep)	Add an HTML dependency (additional resources and content) to a document. See docs on the HTML Dependencies below for additional details.
+quarto.doc.attach_to_dependency(name, attach)	Attach a file to an existing dependency. attach is a file path relative to the Lua filter or table with `path` and `name` for renaming the file as its copied.
+quarto.doc.use_latex_package(pkg, opt)	Adds a `\usepackage` statement to the LaTeX output (along an options string specified in opt)
+quarto.doc.add_format_resource(path)	Add a format resource to the document. Format resources will be copied into the directory next to the rendered output. This is useful, for example, if your format references a bst or cls file which must be copied into the LaTeX output directory.
+
+Function	Description
+quarto.doc.add_html_dependency(dep)	Add an HTML dependency (additional resources and content) to a document. See docs on the HTML Dependencies below for additional details.
+quarto.doc.attach_to_dependency(name, attach)	Attach a file to an existing dependency. attach is a file path relative to the Lua filter or table with `path` and `name` for renaming the file as its copied.
+quarto.doc.use_latex_package(pkg, opt)	Adds a `\usepackage` statement to the LaTeX output (along an options string specified in opt)
+quarto.doc.add_format_resource(path)	Add a format resource to the document. Format resources will be copied into the directory next to the rendered output. This is useful, for example, if your format references a bst or cls file which must be copied into the LaTeX output directory.
+
+
+Function	Description
+quarto.doc.add_html_dependency(dep)	Add an HTML dependency (additional resources and content) to a document. See docs on the HTML Dependencies below for additional details.
+quarto.doc.attach_to_dependency(name, attach)	Attach a file to an existing dependency. attach is a file path relative to the Lua filter or table with `path` and `name` for renaming the file as its copied.
+quarto.doc.use_latex_package(pkg, opt)	Adds a `\usepackage` statement to the LaTeX output (along an options string specified in opt)
+quarto.doc.add_format_resource(path)	Add a format resource to the document. Format resources will be copied into the directory next to the rendered output. This is useful, for example, if your format references a bst or cls file which must be copied into the LaTeX output directory.
+
+
+See @alg-blue and @alg-red.

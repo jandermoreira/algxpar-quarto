@@ -1,0 +1,36 @@
+---
+title: "AlgXPar Book Example"
+author: Jander Moreira
+
+book:
+  chapters:
+    - chapter_1.qmd
+    - chapter_2.qmd
+
+filters:
+  - algxpar
+---
+
+``` {.pseudocode label=#alg-criacao}
+\begin{algorithmic}<language = brazilian, keyword color = blue>
+    \Description Criação de um arquivo com informações para manter uma agenda simplificada.
+    \Input Uma sequência de contatos, separada nos campos \Id{nome}, \Id{email}, \Id{telefone}, \Id{mês} e \Id{ano}
+    \Output Os dados de entrada armazenados em um arquivo
+    \Procedure{CrieAgenda}{}[Criação a partir de dados externos]
+      \Statep{Crie \Id{arquivo} como um arquivo vazio com acesso de escrita}
+      \While{há dados para na entrada}
+          \Statep{Obtenha os valores para \Id{nome}, \Id{email}, \Id{telefone}, \Id{mês} e \Id{ano}}
+          \Statex
+          \Statep{\Write \Id{nome} em \Id{arquivo}}
+          \Statep{\Write \Id{telefone} em \Id{arquivo}}
+          \Statep{\Write \Id{email} em \Id{arquivo}}
+          \Statep{\Write \Id{mês} em \Id{arquivo}}
+          \Statep{\Write \Id{ano} em \Id{arquivo}}
+      \EndWhile
+      \Statep{Encerre o acesso a \Id{arquivo}}
+    \EndProcedure
+\end{algorithmic}
+```
+
+Veja o  @alg-criacao para mais detalhes.
+
