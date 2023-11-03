@@ -23,6 +23,8 @@ local latex_code_template = [[
   \usepackage[T1]{fontenc}
   \usepackage[utf8]{inputenc}
   \usepackage[brazilian]{babel}
+  \usepackage{amsmath}
+  \usepackage{amssymb}
   \usepackage[brazilian]{algxpar}
   \usepackage{lmodern}
   \usepackage{sourcecodepro}
@@ -36,6 +38,7 @@ local latex_code_template = [[
   \newcommand{\txtbyte}[1]{\txtnumero{#1}}
   \nopagecolor
   \begin{document}
+    \AlgSet{language = brazilian}
     \begin{minipage}{15cm}
     %s
     \end{minipage}
