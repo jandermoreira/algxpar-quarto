@@ -10,7 +10,6 @@ local json = require 'json'
 
 
 local debug = quarto.log.output
-local stringify = pandoc.utils.stringify
 
 local function startsWith(text, subtext)
   return string.sub(text, 1, 4) == subtext
@@ -45,19 +44,17 @@ local latex_code_template = [[
   \end{document}
 ]]
 
-local function create_svg_file(pseudocode_text, filename)
-  debug(">> Ensure " .. algxpar_directory .. " with " .. filename)
-  pandoc.system.make_directory(algxpar_directory, true)
+local function create_svg_file(controls, pseudocode_text, filename)
+  pandoc.system.make_directory(controls.algxpar_directory, true)
   pandoc.system.with_temporary_directory(
     "algxpar",
     function(temporary_directory)
       pandoc.system.with_working_directory(
         temporary_directory,
         function()
-          print(">> SVG in " .. pandoc.system.get_working_directory())
-          svg_filename = project_directory .. "/" ..
-              algxpar_directory .. "/" .. filename
-          print(">> SVG file: " .. svg_filename)
+          svg_filename = controls.base_path ..
+              controls.algxpar_directory .. "/" .. filename
+          debug(">>> SVG to: " .. svg_filename)
           local tex_file = io.open("pseudocode.tex", "w")
           if tex_file ~= nil then
             tex_file:write(latex_code_template:format(pseudocode_text))
@@ -72,89 +69,135 @@ local function create_svg_file(pseudocode_text, filename)
       return nil
     end
   )
-  print(">> SVG: done")
 end
 
 
-local function render_latex(block)
+local function algorithm_caption(controls, caption_text)
+  local caption
+  if quarto.doc.is_format("pdf") then
+    if not caption_text then
+      caption = pandoc.List({})
+    else
+      return pandoc.read(caption_text, "markdown").blocks[1].content
+    end
+  else
+    if not caption_text then
+      caption = pandoc.Para(
+        pandoc.Str("Algoritmo " .. controls.chapter_number .. controls.algorithm_counter)
+      )
+    else
+      caption = pandoc.read("Algoritmo " .. controls.chapter_number ..
+        controls.algorithm_counter .. ": " .. caption_text, "markdown").blocks[1]
+    end
+  end
+  return caption
+end
+
+
+local function render_latex(controls, block)
   label = string.sub(block.attr.attributes["label"], 2)
+  local caption_content = algorithm_caption(controls, block.attr.attributes["title"])
+  local caption = pandoc.Plain(pandoc.RawInline("latex",
+    "\\begin{algorithm}\n\\caption{\\label{" .. label .. "}"))
+  for _, element in ipairs(caption_content) do
+    caption.content:insert(element)
+  end
+  caption.content:insert(pandoc.RawInline("latex", "}\n\\begingroup%\n"))
   return {
-    pandoc.RawInline("latex", "\\begin{algorithm}"),
-    pandoc.RawInline("latex", "\\caption{Este é um algoritmo}"),
-    pandoc.RawInline("latex", "\\label{" .. label .. "}"),
+    caption,
     pandoc.RawInline("latex", block.text),
-    pandoc.RawInline("latex", "\\end{algorithm}"),
+    pandoc.RawInline("latex", "\\endgroup\n\\end{algorithm}"),
   }
 end
 
-local function render_html(block)
+
+local function render_html(controls, block)
   local hash = pandoc.sha1(block.text)
   local unique_name = "pseudocode." .. hash .. ".svg"
   local label = string.sub(block.attr.attributes["label"], 2)
-  create_svg_file(block.text, unique_name)
+  local caption = algorithm_caption(controls, block.attr.attributes["title"])
+  create_svg_file(controls, block.text, unique_name)
+  debug(">>> Image src: " .. controls.algxpar_directory .. "/" .. unique_name)
   element = pandoc.Div(
     {
-      pandoc.Para("Algoritmo " .. chapter_number .. algorithm_counter),
+      pandoc.RawInline("html", '<figcaption class="figure-caption">'),
+      caption,
+      pandoc.RawInline("html", "</figcaption>"),
       pandoc.Para({
         pandoc.Image(
           {},
-          "/" .. algxpar_directory .. "/" .. unique_name,
+          controls.html_link_prefix .. controls.algxpar_directory .. "/" .. unique_name,
           "",
           ---@diagnostic disable-next-line: missing-fields
-          { width = "95%" })
+          { width = "648px", alt = pandoc.utils.stringify(caption) })
       })
     },
     ---@diagnostic disable-next-line: missing-fields
     { id = label }
   )
-  list_of_references[label] = {
-    label = "Algoritmo " .. chapter_number .. algorithm_counter,
+  controls.list_of_references[label] = {
+    label = "Algoritmo " .. controls.chapter_number .. controls.algorithm_counter,
     caption = "",
-    file = html_filename,
+    file = controls.html_filename,
     target = '#' .. label,
     title = "",
   }
+
   return element
 end
 
 
-local function render_pseudocode_block(block)
-  local element
-  if not block.attr.classes:includes("pseudocode") then
-    -- default: do nothing
-    element = block
-  else
-    -- handle pseudocode block
-    local attributes = block.attr.attributes
-    local label = string.sub(attributes["label"], 2) or "NULL"
-    algorithm_counter = algorithm_counter + 1
-    if quarto.doc.is_format("pdf") then
-      element = render_latex(block)
+local function check_attributes(attributes)
+  -- for key, value in pairs(attributes) do
+  --   quarto.log.output(key .. " is " .. value)
+  -- end
+  return
+end
+
+
+local function render_pseudocode_block_filter(controls)
+  local function run_render_pseudocode_block_filter(block)
+    local element
+    if not block.attr.classes:includes("pseudocode") then
+      element = block
     else
-      -- html and epub
-      element = render_html(block)
+      local attributes = block.attr.attributes
+      check_attributes(attributes)
+      if attributes["label"] then
+        label = string.sub(attributes["label"], 2)
+      else
+        label = "#none"
+      end
+      controls.algorithm_counter = controls.algorithm_counter + 1
+      if quarto.doc.is_format("pdf") then
+        element = render_latex(controls, block)
+      else -- html and epub
+        element = render_html(controls, block)
+      end
     end
+    return element
   end
-  return element
+
+  return { CodeBlock = run_render_pseudocode_block_filter }
 end
 
 
-local function cite_latex(label)
+local function cite_latex(controls, label)
   return pandoc.RawInline("latex",
-    "Algoritmo~" .. chapter_number .. "\\ref{" .. label .. "}")
+    "Algoritmo~" .. controls.chapter_number .. "\\ref{" .. label .. "}")
 end
 
 
-local function cite_html(citation)
+local function cite_html(controls, citation)
   local element
-  if list_of_references[citation.id] then
-    local target = link_prefix ..
-        list_of_references[citation.id].file ..
-        list_of_references[citation.id].target
+  if controls.list_of_references[citation.id] then
+    local target = controls.html_link_prefix ..
+        controls.list_of_references[citation.id].file ..
+        controls.list_of_references[citation.id].target
     local link = pandoc.Link(
-      list_of_references[citation.id].label,
+      controls.list_of_references[citation.id].label,
       target,
-      list_of_references[citation.id].title
+      controls.list_of_references[citation.id].title
     )
     element = link
   else
@@ -166,11 +209,11 @@ local function cite_html(citation)
 end
 
 
-local function cite_plain(citation)
+local function cite_plain(controls, citation)
   local element
-  if list_of_references[citation.id] then
+  if controls.list_of_references[citation.id] then
     element = pandoc.Str("Algoritmo " ..
-      list_of_references[citation.id].label)
+      controls.list_of_references[citation.id].label)
   else
     element = pandoc.Str("??" .. citation.id)
     debug("Unknown reference '@" .. citation.id .. "'.")
@@ -180,36 +223,40 @@ local function cite_plain(citation)
 end
 
 
-local function process_crossrefs(citation)
-  local element = citation
-  for _, single_citation in pairs(citation.citations) do
-    if startsWith(single_citation.id, "alg-") then
-      if quarto.doc.is_format("pdf") then
-        element = cite_latex(single_citation.id)
-      elseif quarto.doc.is_format("html") then
-        element = cite_html(single_citation)
-      else
-        element = cite_plain(single_citation)
+local function process_crossrefs_filter(controls)
+  local function run_process_crossrefs_filter(citation)
+    local element = citation
+    for _, single_citation in pairs(citation.citations) do
+      if startsWith(single_citation.id, "alg-") then
+        if quarto.doc.is_format("pdf") then
+          element = cite_latex(controls, single_citation.id)
+        elseif quarto.doc.is_format("html") then
+          element = cite_html(controls, single_citation)
+        else
+          element = cite_plain(controls, single_citation)
+        end
       end
     end
+    return element
   end
-  return element
+
+  return { Cite = run_process_crossrefs_filter }
 end
 
 
-local function initialize_list_of_references()
+local function initialize_list_of_references(controls)
   local list
-  if not is_project then
+  if controls.mode ~= "project" then
     list = {}
   else
-    algxpar_path = project_directory .. "/" .. algxpar_directory
+    algxpar_path = controls.base_path .. controls.algxpar_directory
     pandoc.system.make_directory(algxpar_path, true)
     pandoc.system.with_working_directory(
       algxpar_path,
       function()
         local filename = "references.json"
         local file = io.open(filename, "r")
-        if file == nil then
+        if not file then
           list = {}
         else
           list = json.decode(file:read("a"))
@@ -223,35 +270,47 @@ local function initialize_list_of_references()
 end
 
 
-local function initialize(meta)
-  quarto_filename = quarto.doc.input_file
-  is_project = os.getenv("QUARTO_PROJECT_DIR") ~= nil
-  if not is_project then
-    project_directory = ""
-    algxpar_directory = "_algxpar"
+local function initialize_algxpar(meta)
+  -- Global controls
+  local controls = {
+    mode = "file",
+    base_path = "",
+    algxpar_directory = "_algxpar",
+    list_of_references = {},
+    chapter_number = "",
+    algorithm_counter = 0,
+    html_filename = "",
+    html_link_prefix = "",
+  }
+
+  local quarto_filename = quarto.doc.input_file
+
+  local is_project = os.getenv("QUARTO_PROJECT_DIR")
+  if is_project then
+    controls.mode = "project"
+    controls.base_path = os.getenv("QUARTO_PROJECT_DIR")
+    quarto_filename = string.sub(quarto_filename, #controls.base_path + 2)
+    controls.html_filename = quarto_filename:gsub("%.qmd$", ".html")
+    if quarto.doc.is_format("html") then
+      local _, directoryLevel = quarto_filename:gsub("/", "")
+      for _ = 1, directoryLevel do
+        controls.html_link_prefix = "../" .. controls.html_link_prefix
+      end
+    end
+    controls.base_path = controls.base_path .. "/"
   else
-    project_directory = os.getenv("QUARTO_PROJECT_DIR")
-    quarto_filename = string.sub(quarto_filename, #project_directory + 2)
-    algxpar_directory = "_algxpar"
+    controls.base_path = string.match(quarto_filename, ".*/")
   end
+  
 
-
-  chapter_number = ""
-  local _, directoryLevel = quarto_filename:gsub("/", "")
+  --  Get chapter number if it's a book
   if meta["book"] then
     for _, render in pairs(meta["book"]["render"]) do
       if render["file"] and render["number"] and
-          stringify(render["file"]) == quarto_filename then
-        chapter_number = stringify(render["number"]) .. "."
+          pandoc.utils.stringify(render["file"]) == quarto_filename then
+        controls.chapter_number =
+            pandoc.utils.stringify(render["number"]) .. "."
       end
-    end
-  end
-
-  link_prefix = ""
-  if quarto.doc.is_format("html") then
-    html_filename = quarto_filename:gsub("%.qmd$", ".html")
-    for _ = 1, directoryLevel do
-      link_prefix = "../" .. link_prefix
     end
   end
 
@@ -266,40 +325,22 @@ local function initialize(meta)
     end
   end
 
-  list_of_references = initialize_list_of_references()
-  algorithm_counter = 0
+  controls.list_of_references = initialize_list_of_references(controls)
 
-  debug("")
-  debug("algxpar:")
-  debug("  current file: " .. quarto_filename)
-  if is_project then
-    debug("  mode: project")
-    debug("  project directory: " .. project_directory)
-    debug("  chapter prefix: " .. chapter_number)
-  else
-    debug("  mode: single file")
-  end
-  debug("  algxpar directory: " .. algxpar_directory)
-  if quarto.doc.is_format("html") then
-    debug("  links to: " .. html_filename)
-    debug("  root is in: " .. link_prefix)
-  end
-  debug("  list of references size: " .. #list_of_references)
-  debug("")
-
-  return meta
+  return controls
 end
 
 
-local function save_references()
-  if is_project then
+local function terminate_algxpar(controls)
+  if controls.mode == "project" then
     pandoc.system.with_working_directory(
-      project_directory .. "/_algxpar",
+      controls.base_path .. controls.algxpar_directory,
       function()
         local referenceFile = "references.json"
         file = io.open(referenceFile, "w")
-        if file ~= nil then
-          file:write(json.encode(list_of_references))
+        if file then
+          encoded_json = json.encode(controls.list_of_references)
+          file:write(encoded_json)
           file:close()
         end
         return nil
@@ -309,9 +350,44 @@ local function save_references()
 end
 
 
+local function debug_print_info(controls)
+  debug("")
+  debug("algxpar:")
+  -- debug("  current file: " .. quarto_filename)
+  if controls.mode == "project" then
+    debug("  mode: project")
+    debug("  project directory: " .. controls.base_path)
+    debug("  chapter prefix: " .. controls.chapter_number)
+  else
+    debug("  mode: file")
+  end
+  debug("  algxpar directory: " .. controls.algxpar_directory)
+  if quarto.doc.is_format("html") then
+    debug("  links to: " .. controls.html_filename)
+    debug("  root is in: " .. controls.html_link_prefix)
+  end
+  debug("")
+end
+
+
+local function algxpar(doc)
+  local global_controls = initialize_algxpar(doc.meta)
+
+  -- Render pseudocode and grab labels for references
+  doc = doc:walk(render_pseudocode_block_filter(global_controls))
+
+  -- Process cross references
+  doc = doc:walk(process_crossrefs_filter(global_controls))
+
+  -- Update list of references to file
+  terminate_algxpar(global_controls)
+
+  debug_print_info(global_controls)
+
+  return doc
+end
+
+
 return {
-  { Meta = initialize },
-  { CodeBlock = render_pseudocode_block },
-  { Cite = process_crossrefs },
-  { Meta = save_references },
+  { Pandoc = algxpar },
 }
