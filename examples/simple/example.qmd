@@ -2,7 +2,7 @@
 title: "`algxpar` Example"
 author: Jander Moreira
 filters:
-  - algxpar
+  - algxpar-quarto.lua
 ---
 
 # Simple example

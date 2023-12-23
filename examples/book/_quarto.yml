@@ -12,7 +12,7 @@ book:
     - book_stuff/chapter_qmd.qmd
 
 filters: 
-  - algxpar
+  - algxpar-quarto
 
 format:
   html:
