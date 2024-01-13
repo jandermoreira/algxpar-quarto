@@ -21,5 +21,7 @@ format:
     documentclass: scrbook
     keep-tex: true
 
-
+algxpar:
+  algorithm-title: "Algorit."
+  algorithm-prefix: "Alg."
 
