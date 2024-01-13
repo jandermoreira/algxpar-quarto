@@ -37,6 +37,7 @@ local latex_code_template = [[
   \newcommand{\txtbyte}[1]{\txtnumero{#1}}
   \nopagecolor
   \begin{document}
+    \sffamily
     \AlgSet{language = brazilian}
     \begin{minipage}{15cm}
     %s
@@ -54,15 +55,20 @@ local function create_svg_file(controls, pseudocode_text, filename)
         function()
           svg_filename = controls.base_path ..
               controls.algxpar_directory .. "/" .. filename
-          debug(">>> SVG to: " .. svg_filename)
           local tex_file = io.open("pseudocode.tex", "w")
           if tex_file ~= nil then
             tex_file:write(latex_code_template:format(pseudocode_text))
             tex_file:close()
           end
-          os.execute("pdflatex -interaction=nonstopmode " ..
-            "pseudocode.tex > /dev/null")
-          os.execute("pdf2svg pseudocode.pdf " .. svg_filename)
+          if os.execute("pdflatex -interaction=nonstopmode " ..
+                "pseudocode.tex > /dev/null") then
+            os.execute("pdf2svg pseudocode.pdf " .. svg_filename)
+          else
+            os.execute("cp pseudocode.log /tmp/" .. filename .. ".log")
+            os.execute("cp pseudocode.tex /tmp/" .. filename .. ".tex")
+            debug("*** pdflatex failed. See /tmp/" ..
+              filename .. ".log")
+          end
           return nil
         end
       )
@@ -117,7 +123,6 @@ local function render_html(controls, block)
   local label = string.sub(block.attr.attributes["label"], 2)
   local caption = algorithm_caption(controls, block.attr.attributes["title"])
   create_svg_file(controls, block.text, unique_name)
-  debug(">>> Image src: " .. controls.algxpar_directory .. "/" .. unique_name)
   element = pandoc.Div(
     {
       pandoc.RawInline("html", '<figcaption class="figure-caption">'),
@@ -244,6 +249,21 @@ local function process_crossrefs_filter(controls)
 end
 
 
+local function render_pseudocode_block_callout_filter(controls)
+  local function run_render_pseudocode_block_callout_filter(callout)
+    -- quarto.log.output(">>>>>>>>>>>>>>>>>>> CALLOUT")
+    -- quarto.log.output(controls)
+    -- quarto.log.output(">>>>>>>>>>>>>>>>>>>\n\n")
+    -- callout.content =
+    --     callout.content:walk(render_pseudocode_block_filter(controls))
+    -- return callout
+    return pandoc.Str("ASDFASDFADSFADSF")
+  end
+
+  return { BlockQuote = run_render_pseudocode_block_callout_filter }
+end
+
+
 local function initialize_list_of_references(controls)
   local list
   if controls.mode ~= "project" then
@@ -301,7 +321,7 @@ local function initialize_algxpar(meta)
   else
     controls.base_path = string.match(quarto_filename, ".*/")
   end
-  
+
 
   --  Get chapter number if it's a book
   if meta["book"] then
@@ -369,20 +389,30 @@ local function debug_print_info(controls)
   debug("")
 end
 
+local function teste(callout)
+  local new_content = callout.content:walk(render_pseudocode_block_filter(global_controls))
+  callout.content = new_content
+  return callout
+end
+
 
 local function algxpar(doc)
-  local global_controls = initialize_algxpar(doc.meta)
+  global_controls = initialize_algxpar(doc.meta)
 
   -- Render pseudocode and grab labels for references
   doc = doc:walk(render_pseudocode_block_filter(global_controls))
 
+  -- -- -- Render pseudocode and grab labels for references inside callouts
+  -- doc = doc:walk(render_pseudocode_block_callout_filter(global_controls))
+
   -- Process cross references
   doc = doc:walk(process_crossrefs_filter(global_controls))
+
 
   -- Update list of references to file
   terminate_algxpar(global_controls)
 
-  debug_print_info(global_controls)
+  -- debug_print_info(global_controls)
 
   return doc
 end
@@ -390,4 +420,5 @@ end
 
 return {
   { Pandoc = algxpar },
+  { Callout = teste }
 }
