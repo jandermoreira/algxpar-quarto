@@ -8,13 +8,26 @@
 local json = require 'json'
 
 
-
 local debug = quarto.log.output
 
-local function startsWith(text, subtext)
+
+local function starts_with(text, subtext)
   return string.sub(text, 1, 4) == subtext
 end
 
+
+local function file_exists(filename)
+  local file = io.open(filename, "r")
+  local exists
+  if file == nil then
+    exists = false
+  else
+    exists = true
+    file:close()
+  end
+
+  return exists
+end
 
 
 local latex_code_template = [[
@@ -55,19 +68,21 @@ local function create_svg_file(controls, pseudocode_text, filename)
         function()
           svg_filename = controls.base_path ..
               controls.algxpar_directory .. "/" .. filename
-          local tex_file = io.open("pseudocode.tex", "w")
-          if tex_file ~= nil then
-            tex_file:write(latex_code_template:format(pseudocode_text))
-            tex_file:close()
-          end
-          if os.execute("pdflatex -interaction=nonstopmode " ..
-                "pseudocode.tex > /dev/null") then
-            os.execute("pdf2svg pseudocode.pdf " .. svg_filename)
-          else
-            os.execute("cp pseudocode.log /tmp/" .. filename .. ".log")
-            os.execute("cp pseudocode.tex /tmp/" .. filename .. ".tex")
-            debug("*** pdflatex failed. See /tmp/" ..
-              filename .. ".log")
+          if not file_exists(svg_filename) then
+            local tex_file = io.open("pseudocode.tex", "w")
+            if tex_file ~= nil then
+              tex_file:write(latex_code_template:format(pseudocode_text))
+              tex_file:close()
+            end
+            if os.execute("pdflatex -interaction=nonstopmode " ..
+                  "pseudocode.tex > /dev/null") then
+              os.execute("pdf2svg pseudocode.pdf " .. svg_filename)
+            else
+              os.execute("cp pseudocode.log /tmp/" .. filename .. ".log")
+              os.execute("cp pseudocode.tex /tmp/" .. filename .. ".tex")
+              debug("*** pdflatex failed. See /tmp/" ..
+                filename .. ".log")
+            end
           end
           return nil
         end
@@ -89,11 +104,12 @@ local function algorithm_caption(controls, caption_text)
   else
     if not caption_text then
       caption = pandoc.Para(
-        pandoc.Str("Algoritmo " .. controls.chapter_number .. controls.algorithm_counter)
+        pandoc.Str(controls.algorithm_title .. " " ..
+          controls.chapter_number .. controls.algorithm_counter)
       )
     else
-      caption = pandoc.read("Algoritmo " .. controls.chapter_number ..
-        controls.algorithm_counter .. ": " .. caption_text, "markdown").blocks[1]
+      caption = pandoc.read(controls.algorithm_title .. " " ..
+        controls.chapter_number .. controls.algorithm_counter .. ": " .. caption_text, "markdown").blocks[1]
     end
   end
   return caption
@@ -141,7 +157,8 @@ local function render_html(controls, block)
     { id = label }
   )
   controls.list_of_references[label] = {
-    label = "Algoritmo " .. controls.chapter_number .. controls.algorithm_counter,
+    label = controls.algorithm_prefix .. " " .. controls.chapter_number ..
+        controls.algorithm_counter,
     caption = "",
     file = controls.html_filename,
     target = '#' .. label,
@@ -156,12 +173,12 @@ local function check_attributes(attributes)
   -- for key, value in pairs(attributes) do
   --   quarto.log.output(key .. " is " .. value)
   -- end
-  return
+  return nil
 end
 
 
-local function render_pseudocode_block_filter(controls)
-  local function run_render_pseudocode_block_filter(block)
+local function pseudocode_block_filter(controls)
+  local function run_pseudocode_block_filter(block)
     local element
     if not block.attr.classes:includes("pseudocode") then
       element = block
@@ -183,13 +200,14 @@ local function render_pseudocode_block_filter(controls)
     return element
   end
 
-  return { CodeBlock = run_render_pseudocode_block_filter }
+  return { CodeBlock = run_pseudocode_block_filter }
 end
 
 
 local function cite_latex(controls, label)
   return pandoc.RawInline("latex",
-    "Algoritmo~" .. controls.chapter_number .. "\\ref{" .. label .. "}")
+    controls.algorithm_prefix .. "~" .. controls.chapter_number ..
+    "\\ref{" .. label .. "}")
 end
 
 
@@ -217,7 +235,7 @@ end
 local function cite_plain(controls, citation)
   local element
   if controls.list_of_references[citation.id] then
-    element = pandoc.Str("Algoritmo " ..
+    element = pandoc.Str(controls.algorithm_prefix .. " " ..
       controls.list_of_references[citation.id].label)
   else
     element = pandoc.Str("??" .. citation.id)
@@ -232,7 +250,7 @@ local function process_crossrefs_filter(controls)
   local function run_process_crossrefs_filter(citation)
     local element = citation
     for _, single_citation in pairs(citation.citations) do
-      if startsWith(single_citation.id, "alg-") then
+      if starts_with(single_citation.id, "alg-") then
         if quarto.doc.is_format("pdf") then
           element = cite_latex(controls, single_citation.id)
         elseif quarto.doc.is_format("html") then
@@ -246,21 +264,6 @@ local function process_crossrefs_filter(controls)
   end
 
   return { Cite = run_process_crossrefs_filter }
-end
-
-
-local function render_pseudocode_block_callout_filter(controls)
-  local function run_render_pseudocode_block_callout_filter(callout)
-    -- quarto.log.output(">>>>>>>>>>>>>>>>>>> CALLOUT")
-    -- quarto.log.output(controls)
-    -- quarto.log.output(">>>>>>>>>>>>>>>>>>>\n\n")
-    -- callout.content =
-    --     callout.content:walk(render_pseudocode_block_filter(controls))
-    -- return callout
-    return pandoc.Str("ASDFASDFADSFADSF")
-  end
-
-  return { BlockQuote = run_render_pseudocode_block_callout_filter }
 end
 
 
@@ -301,6 +304,8 @@ local function initialize_algxpar(meta)
     algorithm_counter = 0,
     html_filename = "",
     html_link_prefix = "",
+    algorithm_title = "Algorithm",
+    algorithm_prefix = "Alg.",
   }
 
   local quarto_filename = quarto.doc.input_file
@@ -389,21 +394,12 @@ local function debug_print_info(controls)
   debug("")
 end
 
-local function teste(callout)
-  local new_content = callout.content:walk(render_pseudocode_block_filter(global_controls))
-  callout.content = new_content
-  return callout
-end
-
 
 local function algxpar(doc)
-  global_controls = initialize_algxpar(doc.meta)
+  local global_controls = initialize_algxpar(doc.meta)
 
   -- Render pseudocode and grab labels for references
-  doc = doc:walk(render_pseudocode_block_filter(global_controls))
-
-  -- -- -- Render pseudocode and grab labels for references inside callouts
-  -- doc = doc:walk(render_pseudocode_block_callout_filter(global_controls))
+  doc = doc:walk(pseudocode_block_filter(global_controls))
 
   -- Process cross references
   doc = doc:walk(process_crossrefs_filter(global_controls))
@@ -420,5 +416,4 @@ end
 
 return {
   { Pandoc = algxpar },
-  { Callout = teste }
 }
