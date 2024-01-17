@@ -1,6 +1,13 @@
 # One
 
-``` {.pseudocode label=#alg-blue}
+::: {.callout}
+::: {.callout-tip}
+
+```pseudocode
+%| pdf-float: "false"
+%| title: "A new way to do it."
+%| label: #alg-blue
+   
 \begin{algorithmic}<language = brazilian, keyword color = blue>
     \Description Criação de um arquivo com informações para manter uma agenda simplificada.
     \Input Uma sequência de contatos, separada nos campos \Id{nome}, \Id{email}, \Id{telefone}, \Id{mês} e \Id{ano}
@@ -21,6 +28,8 @@
 \end{algorithmic}
 ```
 
+:::
+:::
 
 Function	Description
 quarto.doc.add_html_dependency(dep)	Add an HTML dependency (additional resources and content) to a document. See docs on the HTML Dependencies below for additional details.

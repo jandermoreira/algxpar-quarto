@@ -22,6 +22,7 @@ format:
     keep-tex: true
 
 algxpar:
-  algorithm-title: "Algorit."
-  algorithm-prefix: "Alg."
+  algorithm-title: "Algoritmo"
+  algorithm-prefix: "Algoritmo"
+  pdf-float: "false"
 
