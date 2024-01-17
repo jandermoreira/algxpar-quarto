@@ -10,6 +10,8 @@ local json = require 'json'
 
 local debug = quarto.log.output
 
+-- ---------------------------------------------------
+-- Utils
 
 local function starts_with(text, subtext)
   return string.sub(text, 1, 4) == subtext
@@ -29,6 +31,30 @@ local function file_exists(filename)
   return exists
 end
 
+
+local function is_in(value, table)
+  local has_value = false
+  if #table == 0 then
+    has_value = true
+  else
+    for _, item in ipairs(table) do
+      debug("Checking:", value, "and", item, value == item and type(value) == type(item))
+      if value == item and type(value) == type(item) then
+        has_value = true
+      end
+    end
+    if not has_value then
+      debug("Argument", value, "ignored. Must be in ", table)
+    end
+  end
+
+  debug(has_value and "Yes" or "No")
+  return has_value
+end
+
+
+-- ---------------------------------------------------
+-- LaTex to SVG
 
 local latex_code_template = [[
   \documentclass[convert]{standalone}
@@ -93,7 +119,10 @@ local function create_svg_file(controls, pseudocode_text, filename)
 end
 
 
-local function algorithm_caption(controls, caption_text)
+-- ---------------------------------------------------
+-- Block rendering
+
+local function format_algorithm_caption(controls, caption_text)
   local caption
   if quarto.doc.is_format("pdf") then
     if not caption_text then
@@ -116,28 +145,50 @@ local function algorithm_caption(controls, caption_text)
 end
 
 
+local function check_attributes(attributes)
+  -- for key, value in pairs(attributes) do
+  --   quarto.log.output(key .. " is " .. value)
+  -- end
+  return nil
+end
+
+
 local function render_latex(controls, block)
-  label = string.sub(block.attr.attributes["label"], 2)
-  local caption_content = algorithm_caption(controls, block.attr.attributes["title"])
-  local caption = pandoc.Plain(pandoc.RawInline("latex",
-    "\\begin{algorithm}\n\\caption{\\label{" .. label .. "}"))
+  local element
+  debug(controls)
+  label = string.sub(controls["local_controls"]["label"], 2)
+  local caption_content = format_algorithm_caption(controls, block.attr.attributes["title"])
+  local caption
+  if block.attr.attributes["pdf-float"] and
+      block.attr.attributes["pdf-float"] == "false" then
+    caption = pandoc.Plain(pandoc.RawInline("latex",
+      "\\begin{algorithm}[H]\n\\caption{\\label{" .. label .. "}"))
+  else
+    caption = pandoc.Plain(pandoc.RawInline("latex",
+      "\\begin{algorithm}\n\\caption{\\label{" .. label .. "}"))
+  end
   for _, element in ipairs(caption_content) do
     caption.content:insert(element)
   end
   caption.content:insert(pandoc.RawInline("latex", "}\n\\begingroup%\n"))
-  return {
+  element = {
     caption,
     pandoc.RawInline("latex", block.text),
     pandoc.RawInline("latex", "\\endgroup\n\\end{algorithm}"),
   }
+  return element
 end
 
 
 local function render_html(controls, block)
-  local hash = pandoc.sha1(block.text)
-  local unique_name = "pseudocode." .. hash .. ".svg"
-  local label = string.sub(block.attr.attributes["label"], 2)
-  local caption = algorithm_caption(controls, block.attr.attributes["title"])
+  local unique_name = "pseudocode." .. pandoc.sha1(block.text) .. ".svg"
+  local label
+  if block.attr.attributes["label"] then
+    label = string.sub(block.attr.attributes["label"], 2)
+  else
+    label = ""
+  end
+  local caption = format_algorithm_caption(controls, block.attr.attributes["title"])
   create_svg_file(controls, block.text, unique_name)
   element = pandoc.Div(
     {
@@ -169,13 +220,50 @@ local function render_html(controls, block)
 end
 
 
-local function check_attributes(attributes)
-  -- for key, value in pairs(attributes) do
-  --   quarto.log.output(key .. " is " .. value)
-  -- end
-  return nil
+-- ---------------------------------------------------
+-- CodeBlock filters
+
+local function canonize_key(key)
+  return string.gsub(key, "[ -]", "_")
 end
 
+local function canonize_data(data)
+  local value
+  if data == "true" then
+    value = true
+  elseif data == "false" then
+    value = false
+  elseif string.sub(data, 1, 1) == '"' and
+      string.sub(data, -1, -1) == '"' then
+    value = string.sub(data, 2, -2)
+  else
+    value = data
+  end
+
+  return value
+end
+
+local function get_local_controls(attributes, source_code)
+  local options = {}
+  -- from attributes
+  for option, value in pairs(attributes) do
+    options[canonize_key(option)] = canonize_data(value)
+  end
+
+  -- from block text (override those from attributes)
+  local continue_search = true
+  for line in string.gmatch(source_code, "([^\n]*)\n") do
+    if string.match(line, "^%s*$") or not string.match(line, "%s*%%|%s.*") then
+      continue_search = false
+    end
+    if continue_search then
+      option, value = string.match(line, "%s*%%|%s*([^:]*):%s%s*(.*[^%s$])")
+      options[canonize_key(option)] = canonize_data(value)
+    end
+  end
+
+  return options
+end
 
 local function pseudocode_block_filter(controls)
   local function run_pseudocode_block_filter(block)
@@ -184,12 +272,13 @@ local function pseudocode_block_filter(controls)
       element = block
     else
       local attributes = block.attr.attributes
-      check_attributes(attributes)
-      if attributes["label"] then
-        label = string.sub(attributes["label"], 2)
-      else
-        label = "#none"
-      end
+      controls["local_controls"] = get_local_controls(attributes, block.text)
+      -- local label
+      -- if local_controls["label"] then
+      --   label = string.sub(attributes["label"], 2)
+      -- else
+      --   label = "#none"
+      -- end
       controls.algorithm_counter = controls.algorithm_counter + 1
       if quarto.doc.is_format("pdf") then
         element = render_latex(controls, block)
@@ -203,6 +292,9 @@ local function pseudocode_block_filter(controls)
   return { CodeBlock = run_pseudocode_block_filter }
 end
 
+
+-- ---------------------------------------------------
+-- Cite filters
 
 local function cite_latex(controls, label)
   return pandoc.RawInline("latex",
@@ -225,8 +317,8 @@ local function cite_html(controls, citation)
     element = link
   else
     element = pandoc.Str("??" .. citation.id)
-    debug("Unknown reference '@" .. citation.id .. "'.")
-    debug("You can try to do a second pass render to correct it.")
+    debug("algxpar: Unknown reference '@" .. citation.id .. "'.")
+    debug("algxpar: You can try to do a second pass render to correct it.")
   end
   return element
 end
@@ -239,12 +331,15 @@ local function cite_plain(controls, citation)
       controls.list_of_references[citation.id].label)
   else
     element = pandoc.Str("??" .. citation.id)
-    debug("Unknown reference '@" .. citation.id .. "'.")
-    debug("You can try to do a second pass render to correct it.")
+    debug("algxpar: Unknown reference '@" .. citation.id .. "'.")
+    debug("algxpar: You can try to do a second pass render to correct it.")
   end
   return element
 end
 
+
+-- ---------------------------------------------------
+-- Crossrefs filtering
 
 local function process_crossrefs_filter(controls)
   local function run_process_crossrefs_filter(citation)
@@ -293,9 +388,38 @@ local function initialize_list_of_references(controls)
 end
 
 
-local function initialize_algxpar(meta)
-  -- Global controls
-  local controls = {
+-- ---------------------------------------------------
+-- algxpar
+
+
+local function create_default_controls(meta_algxpar)
+  local function get_meta_boolean(option, default_value)
+    local value
+    if type(meta_algxpar[option]) == "boolean" then
+      value = meta_algxpar[option]
+    else
+      if type(meta_algxpar[option]) == "boolean" then
+        debug("algxpar-quarto:", option, "must be either true or false.")
+        debug("algxpar-quarto:", option, "set to ", default_value)
+      end
+      value = default_value
+    end
+
+    return value
+  end
+
+  local function get_meta_string(option, default_value, valid_values)
+    local value
+    if meta_algxpar[option] then
+      value = pandoc.utils.stringify(meta_algxpar[option])
+    else
+      value = default_value
+    end
+
+    return value
+  end
+
+  local default_controls = {
     mode = "file",
     base_path = "",
     algxpar_directory = "_algxpar",
@@ -304,9 +428,18 @@ local function initialize_algxpar(meta)
     algorithm_counter = 0,
     html_filename = "",
     html_link_prefix = "",
-    algorithm_title = "Algorithm",
-    algorithm_prefix = "Alg.",
+    algorithm_title = get_meta_string("algorithm-title", "Algorithm"),
+    algorithm_prefix = get_meta_string("algorithm-prefix", "Algorithm"),
+    pdf_float = get_meta_boolean("pdf-float", true),
   }
+
+  return default_controls
+end
+
+
+local function initialize_algxpar(meta)
+  -- Global controls
+  local controls = create_default_controls(meta["algxpar"])
 
   local quarto_filename = quarto.doc.input_file
 
@@ -340,6 +473,7 @@ local function initialize_algxpar(meta)
   end
 
   if quarto.doc.is_format("pdf") then
+    quarto.doc.use_latex_package("float")
     quarto.doc.use_latex_package("algorithm")
     quarto.doc.use_latex_package("algxpar", "brazilian")
     quarto.doc.include_text("before-body",
@@ -374,6 +508,8 @@ local function terminate_algxpar(controls)
   end
 end
 
+-- ---------------------------------------------------
+-- Info
 
 local function debug_print_info(controls)
   debug("")
@@ -396,23 +532,26 @@ end
 
 
 local function algxpar(doc)
-  local global_controls = initialize_algxpar(doc.meta)
+  local controls = initialize_algxpar(doc.meta)
 
   -- Render pseudocode and grab labels for references
-  doc = doc:walk(pseudocode_block_filter(global_controls))
+  doc = doc:walk(pseudocode_block_filter(controls))
 
   -- Process cross references
-  doc = doc:walk(process_crossrefs_filter(global_controls))
+  doc = doc:walk(process_crossrefs_filter(controls))
 
 
   -- Update list of references to file
-  terminate_algxpar(global_controls)
+  terminate_algxpar(controls)
 
   -- debug_print_info(global_controls)
 
   return doc
 end
 
+
+-- ---------------------------------------------------
+-- The filter!
 
 return {
   { Pandoc = algxpar },
