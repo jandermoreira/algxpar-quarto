@@ -33,23 +33,25 @@ end
 
 
 local function is_in(value, table)
-  local has_value = false
+  local validate_value = false
   if #table == 0 then
-    has_value = true
+    -- if table is nil, any value is good
+    validate_value = true
   else
+    validate_value = false
     for _, item in ipairs(table) do
-      debug("Checking:", value, "and", item, value == item and type(value) == type(item))
+      -- debug("Checking:", value, "and", item, value == item and type(value) == type(item))
       if value == item and type(value) == type(item) then
-        has_value = true
+        validate_value = true
       end
     end
-    if not has_value then
+    if not validate_value then
       debug("Argument", value, "ignored. Must be in ", table)
     end
   end
 
-  debug(has_value and "Yes" or "No")
-  return has_value
+  -- debug(has_value and "Yes" or "No")
+  return validate_value
 end
 
 
