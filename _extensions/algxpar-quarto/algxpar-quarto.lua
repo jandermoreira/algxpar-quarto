@@ -18,6 +18,22 @@ local function starts_with(text, subtext)
 end
 
 
+function copy_table(a_table)
+  local new_table = {}
+  for key, value in pairs(a_table) do
+    new_table[key] = value
+  end
+
+  return new_table
+end
+
+function sync_tables(to_table, from_table)
+  for key, _ in pairs(to_table) do
+    to_table[key] = from_table[key]
+  end
+end
+
+
 local function file_exists(filename)
   local file = io.open(filename, "r")
   local exists
@@ -183,14 +199,15 @@ end
 
 
 local function render_html(controls, block)
+  debug(controls)
   local unique_name = "pseudocode." .. pandoc.sha1(block.text) .. ".svg"
   local label
-  if block.attr.attributes["label"] then
+  if controls["table"] then
     label = string.sub(block.attr.attributes["label"], 2)
   else
     label = ""
   end
-  local caption = format_algorithm_caption(controls, block.attr.attributes["title"])
+  local caption = format_algorithm_caption(controls, controls["title"])
   create_svg_file(controls, block.text, unique_name)
   element = pandoc.Div(
     {
@@ -245,11 +262,12 @@ local function canonize_data(data)
   return value
 end
 
-local function get_local_controls(attributes, source_code)
-  local options = {}
+local function set_local_controls(controls, attributes, source_code)
+  local local_controls = copy_table(controls)
+
   -- from attributes
   for option, value in pairs(attributes) do
-    options[canonize_key(option)] = canonize_data(value)
+    local_controls[canonize_key(option)] = canonize_data(value)
   end
 
   -- from block text (override those from attributes)
@@ -260,11 +278,11 @@ local function get_local_controls(attributes, source_code)
     end
     if continue_search then
       option, value = string.match(line, "%s*%%|%s*([^:]*):%s%s*(.*[^%s$])")
-      options[canonize_key(option)] = canonize_data(value)
+      local_controls[canonize_key(option)] = canonize_data(value)
     end
   end
 
-  return options
+  return local_controls
 end
 
 local function pseudocode_block_filter(controls)
@@ -274,19 +292,20 @@ local function pseudocode_block_filter(controls)
       element = block
     else
       local attributes = block.attr.attributes
-      controls["local_controls"] = get_local_controls(attributes, block.text)
+      local local_controls = set_local_controls(controls, attributes, block.text)
       -- local label
       -- if local_controls["label"] then
       --   label = string.sub(attributes["label"], 2)
       -- else
       --   label = "#none"
       -- end
-      controls.algorithm_counter = controls.algorithm_counter + 1
+      local_controls.algorithm_counter = controls.algorithm_counter + 1
       if quarto.doc.is_format("pdf") then
-        element = render_latex(controls, block)
+        element = render_latex(local_controls, block)
       else -- html and epub
-        element = render_html(controls, block)
+        element = render_html(local_controls, block)
       end
+      sync_tables(controls, local_controls)
     end
     return element
   end
@@ -395,6 +414,7 @@ end
 
 
 local function create_default_controls(meta_algxpar)
+  meta_algxpar = meta_algxpar or {}  -- avoid nil
   local function get_meta_boolean(option, default_value)
     local value
     if type(meta_algxpar[option]) == "boolean" then
