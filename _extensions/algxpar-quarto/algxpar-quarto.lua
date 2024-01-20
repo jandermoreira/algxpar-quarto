@@ -68,7 +68,7 @@ local function is_in(value, table)
       end
     end
     if not validate_value then
-      debug("Argument", value, "ignored. Must be in ", table)
+      debug("algxpar-quarto: Argument", value, "ignored. Must be in ", table)
     end
   end
 
@@ -178,7 +178,11 @@ end
 
 local function render_latex(controls, block)
   local element
-  label = string.sub(controls["label"], 2)
+  if controls["label"] then
+    label = string.sub(controls["label"], 2)
+  else
+    label = ""
+  end
   local caption_content = format_algorithm_caption(controls, controls["title"])
   local caption
   if not controls["pdf_float"] then
