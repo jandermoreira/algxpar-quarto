@@ -5,17 +5,20 @@ filters:
   - algxpar-quarto.lua
 ---
 
-```pseudocode {label=#alg-um}
+```latex {.pseudocode}
+%| label: #alg-um
+%| title: Um exemplo qualquer.
 \begin{algorithmic}<language = brazilian, keyword color = blue>
-    \Description Criação de um arquivo com informações para manter uma agenda simplificada.
+    \Description Criação de um arquivo com informações para manter uma agenda.
     \Input Uma sequência de contatos, separada nos campos \Id{nome}, \Id{email}, \Id{telefone}, \Id{mês} e \Id{ano}
     \Output Os dados de entrada armazenados em um arquivo
     \Procedure{CrieAgenda}{}[Criação a partir de dados externos]
       \Statep{Crie \Id{arquivo} como um arquivo vazio com acesso de escrita}
-      \Statep{Stop}
+      \Statep{Stop now}
     \EndProcedure
 \end{algorithmic}
 ```
+
 
 
 :::::: {.callout-note}
@@ -36,3 +39,4 @@ See @alg-um.
 
 :::
 ::::::
+
