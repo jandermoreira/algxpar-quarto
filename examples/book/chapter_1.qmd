@@ -3,8 +3,8 @@
 ::: {.callout}
 ::: {.callout-tip}
 
-```pseudocode
-%| pdf-float: "false"
+```latex {.pseudocode}
+%| pdf-float: false
 %| title: "A new way to do it."
 %| label: #alg-blue
    
