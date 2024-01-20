@@ -21,7 +21,11 @@ end
 function copy_table(a_table)
   local new_table = {}
   for key, value in pairs(a_table) do
-    new_table[key] = value
+    if type(value) ~= "table" then
+      new_table[key] = value
+    else
+      new_table[key] = copy_table(value)
+    end
   end
 
   return new_table
@@ -29,10 +33,13 @@ end
 
 function sync_tables(to_table, from_table)
   for key, _ in pairs(to_table) do
-    to_table[key] = from_table[key]
+    if type(from_table[key]) ~= "table" then
+      to_table[key] = from_table[key]
+    else
+      to_table[key] = copy_table(from_table[key])
+    end
   end
 end
-
 
 local function file_exists(filename)
   local file = io.open(filename, "r")
@@ -56,7 +63,6 @@ local function is_in(value, table)
   else
     validate_value = false
     for _, item in ipairs(table) do
-      -- debug("Checking:", value, "and", item, value == item and type(value) == type(item))
       if value == item and type(value) == type(item) then
         validate_value = true
       end
@@ -66,7 +72,6 @@ local function is_in(value, table)
     end
   end
 
-  -- debug(has_value and "Yes" or "No")
   return validate_value
 end
 
@@ -124,7 +129,7 @@ local function create_svg_file(controls, pseudocode_text, filename)
             else
               os.execute("cp pseudocode.log /tmp/" .. filename .. ".log")
               os.execute("cp pseudocode.tex /tmp/" .. filename .. ".tex")
-              debug("*** pdflatex failed. See /tmp/" ..
+              debug("algxpar-quarto: pdflatex run failed. See /tmp/" ..
                 filename .. ".log")
             end
           end
@@ -146,7 +151,7 @@ local function format_algorithm_caption(controls, caption_text)
     if not caption_text then
       caption = pandoc.List({})
     else
-      return pandoc.read(caption_text, "markdown").blocks[1].content
+      caption = pandoc.read(caption_text, "markdown").blocks[1].content
     end
   else
     if not caption_text then
@@ -173,12 +178,10 @@ end
 
 local function render_latex(controls, block)
   local element
-  debug(controls)
-  label = string.sub(controls["local_controls"]["label"], 2)
-  local caption_content = format_algorithm_caption(controls, block.attr.attributes["title"])
+  label = string.sub(controls["label"], 2)
+  local caption_content = format_algorithm_caption(controls, controls["title"])
   local caption
-  if block.attr.attributes["pdf-float"] and
-      block.attr.attributes["pdf-float"] == "false" then
+  if not controls["pdf_float"] then
     caption = pandoc.Plain(pandoc.RawInline("latex",
       "\\begin{algorithm}[H]\n\\caption{\\label{" .. label .. "}"))
   else
@@ -199,11 +202,10 @@ end
 
 
 local function render_html(controls, block)
-  debug(controls)
   local unique_name = "pseudocode." .. pandoc.sha1(block.text) .. ".svg"
   local label
-  if controls["table"] then
-    label = string.sub(block.attr.attributes["label"], 2)
+  if controls["label"] then
+    label = string.sub(controls["label"], 2)
   else
     label = ""
   end
@@ -262,7 +264,7 @@ local function canonize_data(data)
   return value
 end
 
-local function set_local_controls(controls, attributes, source_code)
+local function get_local_controls(controls, attributes, source_code)
   local local_controls = copy_table(controls)
 
   -- from attributes
@@ -291,15 +293,9 @@ local function pseudocode_block_filter(controls)
     if not block.attr.classes:includes("pseudocode") then
       element = block
     else
-      local attributes = block.attr.attributes
-      local local_controls = set_local_controls(controls, attributes, block.text)
-      -- local label
-      -- if local_controls["label"] then
-      --   label = string.sub(attributes["label"], 2)
-      -- else
-      --   label = "#none"
-      -- end
-      local_controls.algorithm_counter = controls.algorithm_counter + 1
+      controls.algorithm_counter = controls.algorithm_counter + 1
+      local local_controls = get_local_controls(controls,
+        block.attr.attributes, block.text)
       if quarto.doc.is_format("pdf") then
         element = render_latex(local_controls, block)
       else -- html and epub
@@ -338,8 +334,8 @@ local function cite_html(controls, citation)
     element = link
   else
     element = pandoc.Str("??" .. citation.id)
-    debug("algxpar: Unknown reference '@" .. citation.id .. "'.")
-    debug("algxpar: You can try to do a second pass render to correct it.")
+    debug("algxpar-quarto: Unknown reference '@" .. citation.id .. "'.")
+    debug("algxpar-quarto: You can try to do a second pass render to correct it.")
   end
   return element
 end
@@ -352,8 +348,8 @@ local function cite_plain(controls, citation)
       controls.list_of_references[citation.id].label)
   else
     element = pandoc.Str("??" .. citation.id)
-    debug("algxpar: Unknown reference '@" .. citation.id .. "'.")
-    debug("algxpar: You can try to do a second pass render to correct it.")
+    debug("algxpar-quarto: Unknown reference '@" .. citation.id .. "'.")
+    debug("algxpar-quarto: You can try to do a second pass render to correct it.")
   end
   return element
 end
@@ -414,7 +410,6 @@ end
 
 
 local function create_default_controls(meta_algxpar)
-  meta_algxpar = meta_algxpar or {}  -- avoid nil
   local function get_meta_boolean(option, default_value)
     local value
     if type(meta_algxpar[option]) == "boolean" then
@@ -434,6 +429,7 @@ local function create_default_controls(meta_algxpar)
     local value
     if meta_algxpar[option] then
       value = pandoc.utils.stringify(meta_algxpar[option])
+      -- todo: check valid_values
     else
       value = default_value
     end
@@ -441,6 +437,7 @@ local function create_default_controls(meta_algxpar)
     return value
   end
 
+  meta_algxpar = meta_algxpar or {} -- avoid nil
   local default_controls = {
     mode = "file",
     base_path = "",
@@ -535,7 +532,7 @@ end
 
 local function debug_print_info(controls)
   debug("")
-  debug("algxpar:")
+  debug("algxpar-quarto:")
   -- debug("  current file: " .. quarto_filename)
   if controls.mode == "project" then
     debug("  mode: project")
