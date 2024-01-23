@@ -55,6 +55,18 @@ local function file_exists(filename)
 end
 
 
+local function load_file(filename)
+  local file = io.open(filename, "r")
+  local contents
+  if file ~= nil then
+    contents = file:read("a")
+    file:close()
+  end
+
+  return contents
+end
+
+
 local function is_in(value, table)
   local validate_value = false
   if #table == 0 then
@@ -109,6 +121,8 @@ local latex_code_template = [[
 
 local function create_svg_file(controls, pseudocode_text, filename)
   pandoc.system.make_directory(controls.algxpar_directory, true)
+
+  local pdflatex_log
   pandoc.system.with_temporary_directory(
     "algxpar",
     function(temporary_directory)
@@ -126,9 +140,12 @@ local function create_svg_file(controls, pseudocode_text, filename)
             if os.execute("pdflatex -interaction=nonstopmode " ..
                   "pseudocode.tex > /dev/null") then
               os.execute("pdf2svg pseudocode.pdf " .. svg_filename)
+              os.execute("rm -f /tmp/tail.log")
             else
               os.execute("cp pseudocode.log /tmp/" .. filename .. ".log")
               os.execute("cp pseudocode.tex /tmp/" .. filename .. ".tex")
+              os.execute("tail -n 50 /tmp/" .. filename .. ".log > tail.log")
+              pdflatex_log = pseudocode_text .. "\n\n(...)\n" .. load_file("tail.log")
               debug("algxpar-quarto: pdflatex run failed. See /tmp/" ..
                 filename .. ".log")
             end
@@ -139,6 +156,8 @@ local function create_svg_file(controls, pseudocode_text, filename)
       return nil
     end
   )
+
+  return pdflatex_log
 end
 
 
@@ -165,14 +184,6 @@ local function format_algorithm_caption(controls, caption_text)
     end
   end
   return caption
-end
-
-
-local function check_attributes(attributes)
-  -- for key, value in pairs(attributes) do
-  --   quarto.log.output(key .. " is " .. value)
-  -- end
-  return nil
 end
 
 
@@ -214,24 +225,29 @@ local function render_html(controls, block)
     label = ""
   end
   local caption = format_algorithm_caption(controls, controls["title"])
-  create_svg_file(controls, block.text, unique_name)
-  element = pandoc.Div(
-    {
-      pandoc.RawInline("html", '<figcaption class="figure-caption">'),
-      caption,
-      pandoc.RawInline("html", "</figcaption>"),
-      pandoc.Para({
-        pandoc.Image(
-          {},
-          controls.html_link_prefix .. controls.algxpar_directory .. "/" .. unique_name,
-          "",
-          ---@diagnostic disable-next-line: missing-fields
-          { width = "648px", alt = pandoc.utils.stringify(caption) })
-      })
-    },
-    ---@diagnostic disable-next-line: missing-fields
-    { id = label }
-  )
+  local pdflatex_log = create_svg_file(controls, block.text, unique_name)
+  debug("D", pdflatex_log)
+  if pdflatex_log then
+    element = pandoc.CodeBlock(pdflatex_log)
+  else
+    element = pandoc.Div(
+      {
+        pandoc.RawInline("html", '<figcaption class="figure-caption">'),
+        caption,
+        pandoc.RawInline("html", "</figcaption>"),
+        pandoc.Para({
+          pandoc.Image(
+            {},
+            controls.html_link_prefix .. controls.algxpar_directory .. "/" .. unique_name,
+            "",
+            ---@diagnostic disable-next-line: missing-fields
+            { width = "648px", alt = pandoc.utils.stringify(caption) })
+        })
+      },
+      ---@diagnostic disable-next-line: missing-fields
+      { id = label }
+    )
+  end
   controls.list_of_references[label] = {
     label = controls.algorithm_prefix .. " " .. controls.chapter_number ..
         controls.algorithm_counter,
@@ -419,7 +435,7 @@ local function create_default_controls(meta_algxpar)
     if type(meta_algxpar[option]) == "boolean" then
       value = meta_algxpar[option]
     else
-      if type(meta_algxpar[option]) == "boolean" then
+      if meta_algxpar[option] then -- not nil
         debug("algxpar-quarto:", option, "must be either true or false.")
         debug("algxpar-quarto:", option, "set to ", default_value)
       end
