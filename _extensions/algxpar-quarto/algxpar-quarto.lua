@@ -18,7 +18,7 @@ local function starts_with(text, subtext)
 end
 
 
-function copy_table(a_table)
+local function copy_table(a_table)
   local new_table = {}
   for key, value in pairs(a_table) do
     if type(value) ~= "table" then
@@ -31,7 +31,7 @@ function copy_table(a_table)
   return new_table
 end
 
-function sync_tables(to_table, from_table)
+local function sync_tables(to_table, from_table)
   for key, _ in pairs(to_table) do
     if type(from_table[key]) ~= "table" then
       to_table[key] = from_table[key]
@@ -112,7 +112,10 @@ local latex_code_template = [[
   \nopagecolor
   \begin{document}
     \sffamily
-    \AlgSet{language = brazilian}
+    \AlgSet{
+      language = brazilian,
+      comment width = nice,
+    }
     \begin{minipage}{15cm}
     %s
     \end{minipage}
@@ -226,7 +229,6 @@ local function render_html(controls, block)
   end
   local caption = format_algorithm_caption(controls, controls["title"])
   local pdflatex_log = create_svg_file(controls, block.text, unique_name)
-  debug("D", pdflatex_log)
   if pdflatex_log then
     element = pandoc.CodeBlock(pdflatex_log)
   else
@@ -516,7 +518,9 @@ local function initialize_algxpar(meta)
     quarto.doc.use_latex_package("algorithm")
     quarto.doc.use_latex_package("algxpar", "brazilian")
     quarto.doc.include_text("before-body",
-      "\\floatstyle{plaintop}\\restylefloat{algorithm}")
+      "\\floatstyle{plaintop}\\restylefloat{algorithm}\n" ..
+      "\\floatname{algorithm}{" .. controls.algorithm_title .. "}"
+    )
     if is_project then
       quarto.doc.include_text("before-body",
         "\\counterwithin{algorithm}{chapter}")
