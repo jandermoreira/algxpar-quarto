@@ -26,7 +26,7 @@ filters:
 
 See @alg-um.
 
-```pseudocode {label=#alg-dois pdf-float=false}
+```pseudocode {pdf-float=false}
 \begin{algorithmic}<keyword color = blue>
     \Description Criação de um arquivo com informações para manter uma agenda simplificada.
     \Input Uma sequência de contatos, separada nos campos \Id{nome}, \Id{email}, \Id{telefone}, \Id{mês} e \Id{ano}
@@ -39,4 +39,19 @@ See @alg-um.
 
 :::
 ::::::
+
+
+```latex {.pseudocode}
+%| label: #alg-tres
+%| title: Um exemplo qualquer.
+\begin{algorithmic}<language = brazilian, keyword color = blue>
+    \Description Criação de um arquivo com informações para manter uma agenda.
+    \Input Uma sequência de contatos, separada nos campos \Id{nome}, \Id{email}, \Id{telefone}, \Id{mês} e \Id{ano}
+    \Output Os dados de entrada armazenados em um arquivo
+    \Procedure{CrieAgenda}{}[Criação a partir de dados externos]
+      \Statep{Crie \Id{arquivo} como um arquivo vazio com acesso de escrita}
+      \Statep{Stop now}
+    \EndProcedure
+\end{algorithmic}
+```
 

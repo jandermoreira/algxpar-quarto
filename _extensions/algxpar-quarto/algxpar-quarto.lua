@@ -177,10 +177,11 @@ local function format_algorithm_caption(controls, caption_text)
     end
   else
     if not caption_text then
-      caption = pandoc.Para(
-        pandoc.Str(controls.algorithm_title .. " " ..
-          controls.chapter_number .. controls.algorithm_counter)
-      )
+      caption = pandoc.List({})
+      -- caption = pandoc.Para(
+      --   pandoc.Str(controls.algorithm_title .. " " ..
+      --     controls.chapter_number .. controls.algorithm_counter)
+      -- )
     else
       caption = pandoc.read(controls.algorithm_title .. " " ..
         controls.chapter_number .. controls.algorithm_counter .. ": " .. caption_text, "markdown").blocks[1]
@@ -197,24 +198,28 @@ local function render_latex(controls, block)
   else
     label = ""
   end
-  local caption_content = format_algorithm_caption(controls, controls["title"])
-  local caption
-  if not controls["pdf_float"] then
-    caption = pandoc.Plain(pandoc.RawInline("latex",
-      "\\begin{algorithm}[H]\n\\caption{\\label{" .. label .. "}"))
+  if not controls["label"] then
+    element = { pandoc.RawInline("latex", "\n\\medskip" .. block.text) }
   else
-    caption = pandoc.Plain(pandoc.RawInline("latex",
-      "\\begin{algorithm}\n\\caption{\\label{" .. label .. "}"))
+    local caption_content = format_algorithm_caption(controls, controls["title"])
+    local caption
+    if not controls["pdf_float"] then
+      caption = pandoc.Plain(pandoc.RawInline("latex",
+        "\\begin{algorithm}[H]\n\\caption{\\label{" .. label .. "}"))
+    else
+      caption = pandoc.Plain(pandoc.RawInline("latex",
+        "\\begin{algorithm}\n\\caption{\\label{" .. label .. "}"))
+    end
+    for _, element in ipairs(caption_content) do
+      caption.content:insert(element)
+    end
+    caption.content:insert(pandoc.RawInline("latex", "}\n\\begingroup%\n"))
+    element = {
+      caption,
+      pandoc.RawInline("latex", block.text),
+      pandoc.RawInline("latex", "\\endgroup\n\\end{algorithm}"),
+    }
   end
-  for _, element in ipairs(caption_content) do
-    caption.content:insert(element)
-  end
-  caption.content:insert(pandoc.RawInline("latex", "}\n\\begingroup%\n"))
-  element = {
-    caption,
-    pandoc.RawInline("latex", block.text),
-    pandoc.RawInline("latex", "\\endgroup\n\\end{algorithm}"),
-  }
   return element
 end
 
@@ -315,9 +320,13 @@ local function pseudocode_block_filter(controls)
     if not block.attr.classes:includes("pseudocode") then
       element = block
     else
-      controls.algorithm_counter = controls.algorithm_counter + 1
       local local_controls = get_local_controls(controls,
         block.attr.attributes, block.text)
+      debug(local_controls["label"])
+      if local_controls.label then
+        controls.algorithm_counter = controls.algorithm_counter + 1
+        local_controls.algorithm_counter = controls.algorithm_counter
+      end
       if quarto.doc.is_format("pdf") then
         element = render_latex(local_controls, block)
       else -- html and epub
