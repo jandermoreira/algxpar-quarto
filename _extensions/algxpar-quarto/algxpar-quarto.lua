@@ -472,7 +472,7 @@ local function create_default_controls(meta_algxpar)
   local default_controls = {
     mode = "file",
     base_path = "",
-    algxpar_directory = "_algxpar",
+    algxpar_directory = "algxpar",
     list_of_references = {},
     chapter_number = "",
     algorithm_counter = 0,
