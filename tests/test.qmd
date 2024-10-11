@@ -1,0 +1,19 @@
+---
+filters:
+    - test.lua
+---
+
+```c 
+// sample
+#include <stdio.h>
+printf("Hi\n");
+```
+
+::: {.callout-warning}
+```c 
+// sample
+#include <stdio.h>
+printf("Hi\n");
+```
+:::
+

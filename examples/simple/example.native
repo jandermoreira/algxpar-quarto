@@ -1,0 +1,16 @@
+Pandoc
+  Meta { unMeta = fromList [] }
+  [ Div
+      ( "" , [] , [] )
+      [ BlockQuote
+          [ Para [ Strong [ Str "None" ] ]
+          , Para [ Str "Jander" ]
+          , CodeBlock
+              ( ""
+              , [ "pseudocode" ]
+              , [ ( "label" , "#alg-outro" ) , ( "width" , "30%" ) ]
+              )
+              "\\begin{algorithmic}<language = brazilian, keyword color = blue>\n    \\Description Cria\231\227o de um arquivo com informa\231\245es para manter uma agenda simplificada.\n    \\Input Uma sequ\234ncia de contatos, separada nos campos \\Id{nome}, \\Id{email}, \\Id{telefone}, \\Id{m\234s} e \\Id{ano}\n    \\Output Os dados de entrada armazenados em um arquivo\n    \\Procedure{CrieAgenda}{}[Cria\231\227o a partir de dados externos]\n      \\Statep{Crie \\Id{arquivo} como um arquivo vazio com acesso de escrita}\n    \\EndProcedure\n\\end{algorithmic}"
+          ]
+      ]
+  ]
